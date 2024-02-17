@@ -1,39 +1,32 @@
 pipeline {
-    agent any
-    parameters {
-        choice(name: 'NUMBER',
-            choices: [10,20,30,40,50,60,70,80,90],
-            description: 'Select the value for F(n) for the Fibonnai sequence.')
+    agent { docker 'public.ecr.aws/docker/library/golang:latest' }
+    environment {
+      // moving the cache to the workspace might speed up
+      // the build stage.  maybe use ${env.WORKSPACE}/.build_cache?
+      GOCACHE = "/tmp"
     }
     options {
         buildDiscarder(logRotator(daysToKeepStr: '10', numToKeepStr: '10'))
-        timeout(time: 12, unit: 'HOURS')
+        timeout(time: 1, unit: 'HOURS')
         timestamps()
     }
-    triggers {
-        cron '@midnight'
-    }
     stages {
-        stage('Make executable') {
+        stage('Source') {
             steps {
-                sh('chmod +x ./scripts/fibonacci.sh')
+                sh 'which go'
+                sh 'go version'
+                git branch: 'stable',
+                    url: 'https://github.com/gohugoio/hugo.git'
             }
         }
-        stage('Relative path') {
+        stage('Build') {
             steps {
-                sh("./scripts/fibonacci.sh ${env.NUMBER}")
+                sh "go build --tags extended"
             }
         }
-        stage('Full path') {
+        stage('Test') {
             steps {
-                sh("${env.WORKSPACE}/scripts/fibonacci.sh ${env.NUMBER}")
-            }
-        }
-        stage('Change directory') {
-            steps {
-                dir("${env.WORKSPACE}/scripts"){
-                    sh("./fibonacci.sh ${env.NUMBER}")
-                }
+                sh './hugo env'
             }
         }
     }
